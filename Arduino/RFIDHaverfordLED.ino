@@ -19,7 +19,7 @@ boolean card;
 #define CHIPSET     WS2811
 #define NUM_LEDS    60
 
-#define BRIGHTNESS  200
+#define BRIGHTNESS  100
 #define FRAMES_PER_SECOND 60
 
 CRGB leds[NUM_LEDS];
