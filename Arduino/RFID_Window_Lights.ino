@@ -30,8 +30,13 @@ CRGB leds[NUM_LEDS];
 #include <RFID.h>
 
 
+
 RFID rfid(10, 9);
 boolean card;
+
+unsigned long previousMillis = 0;        // will store last time LED was updated
+const long interval = 3000;           // interval at which to blink (milliseconds)
+
 
 void setup() {
   delay(3000); // 3 second delay for recovery
@@ -49,7 +54,8 @@ void setup() {
   
   pinMode(button, INPUT_PULLUP);
 
-  
+  FastLED.clear(); 
+
 
 }
 
@@ -60,17 +66,23 @@ SimplePatternList gPatterns = { rainbow, rainbowWithGlitter, confetti, sinelon, 
 
 uint8_t gCurrentPatternNumber = 0; // Index number of which pattern is current
 uint8_t gHue = 0; // rotating "base color" used by many of the patterns
+
+
   
 void loop()
 {
   //read the pushbutton value into a variable
-  int sensorVal = digitalRead(button);
+// int sensorVal = digitalRead(button);
   //print out the value of the pushbutton
-  Serial.print("Button Value: ");
-  Serial.println(sensorVal);
+//  Serial.print("Button Value: ");
+//  Serial.println(sensorVal);
+
+  unsigned long currentMillis = millis();
+
   
-  // Call the current pattern function once, updating the 'leds' array
+ // Call the current pattern function once, updating the 'leds' array
   gPatterns[gCurrentPatternNumber]();
+
 
   // send the 'leds' array out to the actual LED strip
   FastLED.show();  
@@ -80,10 +92,26 @@ void loop()
   // do some periodic updates
   EVERY_N_MILLISECONDS( 20 ) { gHue++; } // slowly cycle the "base color" through the rainbow
 
+
   if (rfid.isCard()) {
      Serial.println("Found a Card");
+   
+    previousMillis = currentMillis;
+
+    delay(500);   
+
     nextPattern(); 
+
     } // change patterns periodically
+
+
+if (currentMillis - previousMillis >= interval) {
+    // save the last time you blinked the LED
+    previousMillis = currentMillis;
+
+    turn_off();
+  }
+
 }
 
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
@@ -103,6 +131,8 @@ void rainbow()
 {
   // FastLED's built-in rainbow generator
   fill_rainbow( leds, NUM_LEDS, gHue, 7);
+
+ // turn_off();
 }
 
 void rainbowWithGlitter() 
@@ -110,6 +140,9 @@ void rainbowWithGlitter()
   // built-in FastLED rainbow, plus some random sparkly glitter
   rainbow();
   addGlitter(80);
+ //   delay(3000);
+ // FastLED.clear();
+
 }
 
 void addGlitter( fract8 chanceOfGlitter) 
@@ -117,6 +150,9 @@ void addGlitter( fract8 chanceOfGlitter)
   if( random8() < chanceOfGlitter) {
     leds[ random16(NUM_LEDS) ] += CRGB::White;
   }
+//    delay(3000);
+//  FastLED.clear();
+
 }
 
 void confetti() 
@@ -125,6 +161,9 @@ void confetti()
   fadeToBlackBy( leds, NUM_LEDS, 10);
   int pos = random16(NUM_LEDS);
   leds[pos] += CHSV( gHue + random8(64), 200, 255);
+ // delay(3000);
+ // FastLED.clear();
+
 }
 
 void sinelon()
@@ -133,6 +172,9 @@ void sinelon()
   fadeToBlackBy( leds, NUM_LEDS, 20);
   int pos = beatsin16( 13, 0, NUM_LEDS-1 );
   leds[pos] += CHSV( gHue, 255, 192);
+ // delay(3000);
+ // FastLED.clear();
+
 }
 
 void bpm()
@@ -144,6 +186,9 @@ void bpm()
   for( int i = 0; i < NUM_LEDS; i++) { //9948
     leds[i] = ColorFromPalette(palette, gHue+(i*2), beat-gHue+(i*10));
   }
+  //delay(3000);
+  //FastLED.clear();
+
 }
 
 void juggle() {
@@ -154,4 +199,7 @@ void juggle() {
     leds[beatsin16( i+7, 0, NUM_LEDS-1 )] |= CHSV(dothue, 200, 255);
     dothue += 32;
   }
+  //delay(3000);
+  //FastLED.clear();
+
 }
