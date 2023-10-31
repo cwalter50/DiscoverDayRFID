@@ -59,9 +59,7 @@ void loop()
   {
     
       Serial.println("Found a Card");
-      // lightCycle();
-      // theaterChaseRainbow(50);
-      rainbow(10);
+      lightCycle();
       rfid.halt();
   }
   else
