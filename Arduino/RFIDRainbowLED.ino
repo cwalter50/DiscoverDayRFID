@@ -1,25 +1,37 @@
 // used this library for rfid.... https://github.com/ArcaEgeCengiz/RFID
-// used this article to get it to work with the servo... just adjusted for LED
-// Found at this article... https://create.arduino.cc/projecthub/Arca_Ege/arduino-rfid-servo-box-4361f1
+// FastLED stopped working in October 2023. Now using this for LED Light Strip.
+// https://github.com/adafruit/Adafruit_NeoPixel
 
-#include <FastLED.h>
 #include <SPI.h>
 #include <RFID.h>
+#include <Adafruit_NeoPixel.h>
+#ifdef __AVR__
+ #include <avr/power.h> // Required for 16 MHz Adafruit Trinket
+#endif
 
 
 RFID rfid(10, 9);
 
 boolean card;
 
-#define LED_PIN     3
-#define COLOR_ORDER GRB
-#define CHIPSET     WS2811
-#define NUM_LEDS    60
 
-#define BRIGHTNESS  100
-#define FRAMES_PER_SECOND 60
+// Which pin on the Arduino is connected to the NeoPixels?
+// On a Trinket or Gemma we suggest changing this to 1:
+#define LED_PIN    6
 
-CRGB leds[NUM_LEDS];
+// How many NeoPixels are attached to the Arduino?
+#define LED_COUNT 60
+
+// Declare our NeoPixel strip object:
+Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+// Argument 1 = Number of pixels in NeoPixel strip
+// Argument 2 = Arduino pin number (most are valid)
+// Argument 3 = Pixel type flags, add together as needed:
+//   NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
+//   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
+//   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
+//   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
+//   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
 
 void setup()
 {
@@ -28,11 +40,12 @@ void setup()
   SPI.begin();
   rfid.init();
 
- delay(3000); // sanity delay
-  FastLED.addLeds<CHIPSET, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
-  FastLED.setBrightness( BRIGHTNESS );
+  delay(3000); // sanity delay
+  strip.begin();           // INITIALIZE NeoPixel strip object (REQUIRED)
+  strip.show();            // Turn OFF all pixels ASAP
+  strip.setBrightness(50); // Set BRIGHTNESS to about 1/5 (max = 255)
   
-Serial.println("Setup Complete");
+  Serial.println("Setup Complete");
 }
 
 
@@ -44,90 +57,61 @@ void loop()
     
       Serial.println("Found a Card");
       lightCycle();
-
       rfid.halt();
   }
   else
   {
-    // turn everything black
-    for (int i = 0; i < NUM_LEDS; i++) {
-
-          leds[i] = CRGB(0, 0, 0); // this is black RGB
-               // leds[i] = CRGB::Red;
-     }
-
-      FastLED.show();
+    strip.clear();
   }
 
 
 }
 
-void lightCycle()
-{
-  for (int i = 0; i < NUM_LEDS; i++)
-  {
-    if (i%7==0)
-    {
-      leds[i] = CRGB::Red;
-    }
-    else if (i%7==1)
-    {
-      leds[i] = CRGB::Orange;
-    }
-    else if (i%7==2)
-    {
-      leds[i] = CRGB::Yellow;
-    }
-    else if (i%7==3)
-    {
-      leds[i] = CRGB::Green;
-    }
-    else if (i%7==4)
-    {
-      leds[i] = CRGB::Blue;
-    }
-    else if (i%7==5)
-    {
-      leds[i] = CRGB::Purple;
-    }
-    else if (i%7==6)
-    {
-      leds[i] = CRGB::White;
-    }
-    else
-    {
-      // this should never happen....
-      leds[i] = CRGB::Black;
-    }
-   
-   
-    FastLED.show();
+void lightCycle() {
+  rainbow(10);
+  
+}
 
-    FastLED.delay(30);
+// Rainbow-enhanced theater marquee. Pass delay time (in ms) between frames.
+void theaterChaseRainbow(int wait) {
+  int firstPixelHue = 0;     // First pixel starts at red (hue 0)
+  for(int a=0; a<30; a++) {  // Repeat 30 times...
+    for(int b=0; b<3; b++) { //  'b' counts from 0 to 2...
+      strip.clear();         //   Set all pixels in RAM to 0 (off)
+      // 'c' counts up from 'b' to end of strip in increments of 3...
+      for(int c=b; c<strip.numPixels(); c += 3) {
+        // hue of pixel 'c' is offset by an amount to make one full
+        // revolution of the color wheel (range 65536) along the length
+        // of the strip (strip.numPixels() steps):
+        int      hue   = firstPixelHue + c * 65536L / strip.numPixels();
+        uint32_t color = strip.gamma32(strip.ColorHSV(hue)); // hue -> RGB
+        strip.setPixelColor(c, color); // Set pixel 'c' to value 'color'
+      }
+      strip.show();                // Update strip with new contents
+      delay(wait);                 // Pause for a moment
+      firstPixelHue += 65536 / 90; // One cycle of color wheel over 90 frames
+    }
   }
+}
 
-  for (int i = NUM_LEDS-1; i >= 0; i--)
-  {
-    leds[i] = CRGB::Black;
-    FastLED.show();
-    FastLED.delay(30);
+// Rainbow cycle along whole strip. Pass delay time (in ms) between frames.
+void rainbow(int wait) {
+  // Hue of first pixel runs 5 complete loops through the color wheel.
+  // Color wheel has a range of 65536 but it's OK if we roll over, so
+  // just count from 0 to 5*65536. Adding 256 to firstPixelHue each time
+  // means we'll make 5*65536/256 = 1280 passes through this loop:
+  for(long firstPixelHue = 0; firstPixelHue < 1.5*65536; firstPixelHue += 256) {
+    // strip.rainbow() can take a single argument (first pixel hue) or
+    // optionally a few extras: number of rainbow repetitions (default 1),
+    // saturation and value (brightness) (both 0-255, similar to the
+    // ColorHSV() function, default 255), and a true/false flag for whether
+    // to apply gamma correction to provide 'truer' colors (default true).
+    strip.rainbow(firstPixelHue);
+    // Above line is equivalent to:
+    // strip.rainbow(firstPixelHue, 1, 255, 255, true);
+    strip.show(); // Update strip with new contents
+    delay(wait);  // Pause for a moment
   }
-
-  for (int i = 0; i < NUM_LEDS; i++)
-  {
-    leds[i] = CRGB::Black;
-  }
-
-  FastLED.show();
-  delay(1000);
-  //  for (int i = 0; i < NUM_LEDS; i++) {
-//
-//    leds[i] = CRGB(255, 255, 255); // this is white RGB
-//    leds[i] = CRGB(0, 0, 0); // this is black RGB
-//          leds[i] = CRGB::Red;
-//  }
-//
-//  FastLED.show();
-//
-//  delay(1000);
+  strip.clear();
+  strip.show();
 }
